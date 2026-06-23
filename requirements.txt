@@ -1,0 +1,5 @@
+xlwings==0.35.1
+TkEasyGUI==1.0.42
+comtypes==1.4.16
+psutil==7.2.2
+Pillow==12.2.0

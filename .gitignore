@@ -1,0 +1,36 @@
+# ビルド成果物
+dist/
+build/
+*.spec.bak
+
+# Python キャッシュ
+__pycache__/
+*.py[cod]
+
+# Excel・個人データ
+*.xlsm
+*.xlsx
+*.xls
+
+# ログ
+logs/
+*.log
+
+# 設定（PC依存パスを含む）
+config.ini
+
+# バックアップ・作業ファイル
+backups/
+
+# Claude Code 設定（ローカル専用）
+.claude/
+
+# キャッシュ・DB
+cache/
+*.db
+
+# パス設定ファイル（PC依存）
+src/current_path.txt
+
+# address-cleansing は xlsm/db 混在のため除外
+address-cleansing/
