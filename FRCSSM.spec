@@ -12,6 +12,15 @@ xlwings_datas, xlwings_binaries, xlwings_hiddenimports = collect_all('xlwings')
 # TkEasyGUI の全リソースを収集
 tkeasygui_datas, tkeasygui_binaries, tkeasygui_hiddenimports = collect_all('TkEasyGUI')
 
+# pykakasi の全リソースを収集 (kanwadict4.db 等のデータファイルを含める)
+pykakasi_datas, pykakasi_binaries, pykakasi_hiddenimports = collect_all('pykakasi')
+
+# babel の全リソースを収集 (tkcalendar が日本語ロケール表示に使う .dat ファイル群)
+babel_datas, babel_binaries, babel_hiddenimports = collect_all('babel')
+
+# certifi の CA 証明書を収集 (requests の HTTPS 通信に必要)
+certifi_datas, certifi_binaries, certifi_hiddenimports = collect_all('certifi')
+
 # comtypes の全サブモジュールを収集
 comtypes_hiddenimports = collect_submodules('comtypes')
 
@@ -22,13 +31,19 @@ a = Analysis(
     pathex=[
         'src',        # src 直下モジュール(config, calenderdialog 等)を解決
     ],
-    binaries=xlwings_binaries + tkeasygui_binaries,
+    binaries=xlwings_binaries + tkeasygui_binaries + pykakasi_binaries + babel_binaries + certifi_binaries,
     datas=[
         # src 以下の Python パッケージ群をそのまま同梱
         ('src', 'src'),
         # xlwings / TkEasyGUI のデータファイル
         *xlwings_datas,
         *tkeasygui_datas,
+        # pykakasi のデータファイル (kanwadict4.db 等)
+        *pykakasi_datas,
+        # babel のロケールデータ (tkcalendar の日本語表示に必要)
+        *babel_datas,
+        # certifi の CA 証明書 (requests の HTTPS 通信に必要)
+        *certifi_datas,
     ],
     hiddenimports=[
         # xlwings が動的インポートするモジュール
@@ -53,6 +68,9 @@ a = Analysis(
         'PIL._tkinter_finder',
         *xlwings_hiddenimports,
         *tkeasygui_hiddenimports,
+        *pykakasi_hiddenimports,
+        *babel_hiddenimports,
+        *certifi_hiddenimports,
         *comtypes_hiddenimports,
     ],
     hookspath=[],

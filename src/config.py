@@ -59,7 +59,7 @@ XLBOOK_B_SHEET_I27 = '水引'
 XLBOOK_C_SHEET_I01 = '香典'
 
 # ----- パス関連 -----
-# USB対応: exe/スクリプト横の data フォルダをデフォルト作業ルートとする
+# 初回起動セットアップが未完了の場合の仮フォールバック（通常は使用しない）
 BASE_PATH = os.path.join(APP_ROOT, 'data')
 
 # ----- フォルダ名 -----

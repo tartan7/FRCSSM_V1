@@ -2,12 +2,15 @@
 最適化されたメインアプリケーション
 旧 global_list / global_value / gui01 / func1 への依存なし。
 """
+import os
+import configparser
 import TkEasyGUI as sg
 from controllers.main_controller import MainController
 from views.main_layout import get_main_layout
 from views.layout_manager import LayoutManager
 from utils.performance_optimizer import PerformanceOptimizer
 from utils.logger import app_logger, error_handler
+import config
 import sys
 from typing import Optional
 
@@ -24,6 +27,74 @@ class OptimizedApplication:
         self.performance_optimizer.optimize_for_system()
         app_logger.info("アプリケーションを開始",
                         memory_usage=self.performance_optimizer.monitor_memory()['rss'])
+
+    def _needs_setup(self) -> bool:
+        """config.ini が存在しないか basepath が実在しない場合 True"""
+        if not os.path.exists(config.CONFIG_INI):
+            return True
+        parser = configparser.RawConfigParser()
+        parser.read(config.CONFIG_INI, encoding='UTF-8')
+        basepath = parser.get('Paths', 'basepath', fallback='').strip()
+        return not basepath or not os.path.isdir(basepath)
+
+    def _run_setup_dialog(self) -> bool:
+        """初回セットアップダイアログを表示。設定完了で True、キャンセルで False を返す。"""
+        from services.file_service import FileService
+
+        # ../終了分 を自動検出して候補として提示
+        candidate = os.path.normpath(os.path.join(config.APP_ROOT, '..', config.TPATH3))
+        default_basepath = candidate if os.path.isdir(candidate) else ''
+
+        layout = [
+            [sg.Text('FRCSSM 初回設定', font=('Meiryo UI', 16, 'bold'))],
+            [sg.HSeparator()],
+            [sg.Text('「終了分」フォルダを選択してください。', font=('Meiryo UI', 12))],
+            [sg.Text('  ※ USB の FRCSSM フォルダの1つ上にある「終了分」フォルダです。',
+                     font=('Meiryo UI', 10))],
+            [sg.Text('')],
+            [sg.Text('終了分フォルダ', size=(14, 1), font=('Meiryo UI', 12)),
+             sg.InputText(key='-basepath-', default_text=default_basepath,
+                          font=('Meiryo UI', 12), size=(32, 1)),
+             sg.FolderBrowse('参照...', font=('Meiryo UI', 11),
+                             initial_folder=default_basepath or config.APP_ROOT,
+                             key='btn_base')],
+            [sg.Text('')],
+            [sg.Text('ViX パス（任意）', size=(14, 1), font=('Meiryo UI', 12)),
+             sg.InputText(key='-vixpath-', default_text='',
+                          font=('Meiryo UI', 12), size=(32, 1)),
+             sg.FileBrowse('参照...', font=('Meiryo UI', 11), key='btn_vix',
+                           file_types=(('実行ファイル', '*.exe'),))],
+            [sg.Text('')],
+            [sg.HSeparator()],
+            [sg.Push(),
+             sg.Button('設定して起動', key='-ok-',
+                       font=('Meiryo UI', 12, 'bold'),
+                       button_color=('white', '#0066CC')),
+             sg.Button('キャンセル', key='-cancel-', font=('Meiryo UI', 12))],
+        ]
+
+        window = sg.Window('FRCSSM 初回設定', layout, modal=True, finalize=True)
+        result = False
+        while True:
+            event, values = window.read()
+            if event in (sg.WIN_CLOSED, '-cancel-'):
+                break
+            if event == '-ok-':
+                basepath = values.get('-basepath-', '').strip()
+                if not basepath:
+                    sg.popup_error('終了分フォルダを選択してください。', title='エラー')
+                    continue
+                if not os.path.isdir(basepath):
+                    sg.popup_error(f'フォルダが存在しません:\n{basepath}', title='エラー')
+                    continue
+                vix_path = values.get('-vixpath-', '').strip()
+                fs = FileService()
+                fs.save_initial_config(basepath, vix_path)
+                app_logger.info("初回セットアップ完了", basepath=basepath)
+                result = True
+                break
+        window.close()
+        return result
 
     def initialize(self) -> bool:
         """アプリケーションを初期化"""
@@ -68,6 +139,12 @@ class OptimizedApplication:
             if not self.initialize():
                 app_logger.critical("アプリケーション初期化に失敗")
                 return
+
+            if self._needs_setup():
+                app_logger.info("初回起動を検出 - セットアップダイアログを表示")
+                if not self._run_setup_dialog():
+                    app_logger.info("初回設定がキャンセルされました")
+                    return
 
             if not self.create_main_window():
                 app_logger.critical("メインウィンドウ作成に失敗")

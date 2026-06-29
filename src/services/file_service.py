@@ -23,22 +23,31 @@ class FileService:
         try:
             parser = configparser.RawConfigParser()
             parser.read(config.CONFIG_INI, encoding='UTF-8')
-
-            # basepath が未設定またはフォルダが存在しない場合は BASE_PATH で初期化
-            basepath = parser.get('Paths', 'basepath', fallback='').strip()
-            if not basepath or not os.path.isdir(basepath):
-                basepath = config.BASE_PATH
-                os.makedirs(basepath, exist_ok=True)
-                if not parser.has_section('Paths'):
-                    parser.add_section('Paths')
-                parser.set('Paths', 'basepath', basepath)
-                with open(config.CONFIG_INI, 'w', encoding='UTF-8') as f:
-                    parser.write(f)
-
             self.current_path = parser.get('Paths', 'current_path', fallback='').strip() or None
             self.vix_path = parser.get('Paths', 'vix_path', fallback='').strip() or None
         except Exception as e:
             print(f"Error reading {config.CONFIG_INI}: {str(e)}")
+
+    def save_initial_config(self, basepath: str, vix_path: str = '') -> None:
+        """初回セットアップ: config.ini を新規生成する"""
+        try:
+            parser = configparser.RawConfigParser()
+            parser.add_section('Paths')
+            parser.set('Paths', 'basepath', basepath)
+            parser.set('Paths', 'current_path', '')
+            parser.set('Paths', 'vix_path', vix_path)
+            parser.add_section('Excel')
+            parser.set('Excel', 'booka', config.XLBOOK_A)
+            parser.set('Excel', 'bookb', config.XLBOOK_B)
+            parser.set('Excel', 'bookc', config.XLBOOK_C)
+            parser.add_section('App')
+            parser.set('App', 'log_retention_days', '30')
+            parser.set('App', 'memory_threshold_mb', '500')
+            with open(config.CONFIG_INI, 'w', encoding='UTF-8') as f:
+                parser.write(f)
+            self.vix_path = vix_path or None
+        except Exception as e:
+            print(f"Error writing initial config: {str(e)}")
 
     def save_paths(self, current_path: str, vix_path: Optional[str] = None) -> None:
         """パス設定を config.ini の [Paths] セクションに保存する"""

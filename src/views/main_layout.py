@@ -62,8 +62,8 @@ def get_main_layout():
                             background='#FFFFFF', foreground='#0000FF',
                             font=('Meiryo UI', 12, "bold"), size=(12, 3))
     s_button_17 = sg.Submit(button_text='寺院詳細別紙作成・出力', key='-sm17-',
-                            background='#FFFFFF', foreground='#808080',
-                            font=('Meiryo UI', 9, "bold"), size=(16, 1), disabled=True)
+                            background='#FFFFFF', foreground='#0000FF',
+                            font=('Meiryo UI', 9, "bold"), size=(16, 1))
 
     frame01 = sg.Frame(layout=[[s_button_08, s_button_00, s_button_13]],
                        title='初期設定', text='初期設定', fg='white', bg='#4472C4',

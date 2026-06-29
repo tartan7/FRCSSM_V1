@@ -59,7 +59,7 @@ class MainController(BaseController):
             '-sm13-': self._handle_clean_output,
             '-sm10-': self._handle_cd_creation,
             '-Print-': self._handle_print,
-            '-sm17-': self._handle_construction_list,
+            '-sm17-': self._handle_temple_detail,
             '-Quit-': self._handle_quit,
             '-Close-': self._handle_return_to_top,
 
@@ -475,9 +475,20 @@ class MainController(BaseController):
             self.show_success('準備を確認してもう一度行ってください', "CD作成")
         return True
 
-    def _handle_construction_list(self, values):
-        """施工状況一覧の処理"""
-        print("施工状況一覧ボタンが押されました")
+    def _handle_temple_detail(self, values):
+        """寺院詳細別紙作成・出力の処理"""
+        cpath = self.data_service.file_service.get_current_path()
+        if not cpath:
+            self.show_error("作業フォルダが設定されていません。\nフォルダ作成・設定から設定してください。")
+            return True
+        file_path = os.path.join(cpath, '寺院詳細(原案).xlsx')
+        if not os.path.exists(file_path):
+            self.show_error(f"ファイルが見つかりません。\n{file_path}")
+            return True
+        try:
+            os.startfile(file_path)
+        except Exception as e:
+            self.show_error(f"ファイルを開けませんでした。\n{str(e)}")
         return True
 
     def _handle_quit(self, values):
