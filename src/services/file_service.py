@@ -9,21 +9,66 @@ import re
 import configparser
 from typing import List, Dict, Optional
 import config
+from utils.drive_utils import is_removable_drive
 
 class FileService:
-    """ファイル操作の共通サービス"""
+    """ファイル操作の共通サービス
+
+    basepath はUSBメモリ運用とPCインストール運用の2パターンを
+    config.ini の [Paths] basepath_usb / basepath_fixed に別々に保存する。
+    起動しているドライブがリムーバブルメディアかどうかで自動的にどちらを使うか判定するため、
+    USBメモリのドライブレターがPCによって変わっても再設定が不要になる。
+    """
 
     def __init__(self):
+        self.basepath = None
         self.current_path = None
         self.vix_path = None
         self._load_paths()
+
+    def _current_mode(self) -> str:
+        """アプリの実行場所のドライブ種別から動作モードを判定する"""
+        return 'usb' if is_removable_drive(config.APP_ROOT) else 'fixed'
+
+    def _basepath_key(self) -> str:
+        return 'basepath_usb' if self._current_mode() == 'usb' else 'basepath_fixed'
+
+    def _resolve_stored_path(self, stored: str) -> Optional[str]:
+        """config.ini に保存された文字列を絶対パスに解決する。
+        相対パス表記（USBメモリ運用でドライブレターに依存しないように保存されたもの）は
+        APP_ROOT（実行ファイルの現在の場所＝現在のドライブレター）を基準に解決する。"""
+        if not stored:
+            return None
+        if os.path.isabs(stored):
+            return os.path.normpath(stored)
+        return os.path.normpath(os.path.join(config.APP_ROOT, stored))
+
+    def _relativize_if_possible(self, target: str) -> str:
+        """target を APP_ROOT からの相対パスに変換できれば変換する。
+        別ドライブ等で変換できない場合は絶対パスのまま返す。"""
+        try:
+            return os.path.relpath(target, config.APP_ROOT)
+        except ValueError:
+            return os.path.normpath(target)
 
     def _load_paths(self) -> None:
         """config.ini の [Paths] セクションからパス設定を読み込む"""
         try:
             parser = configparser.RawConfigParser()
             parser.read(config.CONFIG_INI, encoding='UTF-8')
-            self.current_path = parser.get('Paths', 'current_path', fallback='').strip() or None
+
+            stored_basepath = parser.get('Paths', self._basepath_key(), fallback='').strip()
+            if not stored_basepath:
+                # 旧形式（basepath 単一キー）からの移行フォールバック
+                stored_basepath = parser.get('Paths', 'basepath', fallback='').strip()
+            self.basepath = self._resolve_stored_path(stored_basepath)
+
+            stored_current = parser.get('Paths', 'current_path', fallback='').strip()
+            if stored_current and self.basepath and not os.path.isabs(stored_current):
+                self.current_path = os.path.normpath(os.path.join(self.basepath, stored_current))
+            else:
+                self.current_path = stored_current or None
+
             self.vix_path = parser.get('Paths', 'vix_path', fallback='').strip() or None
         except Exception as e:
             print(f"Error reading {config.CONFIG_INI}: {str(e)}")
@@ -31,9 +76,14 @@ class FileService:
     def save_initial_config(self, basepath: str, vix_path: str = '') -> None:
         """初回セットアップ: config.ini を新規生成する"""
         try:
+            key = self._basepath_key()
+            other_key = 'basepath_fixed' if key == 'basepath_usb' else 'basepath_usb'
+            stored_basepath = self._relativize_if_possible(basepath) if key == 'basepath_usb' else basepath
+
             parser = configparser.RawConfigParser()
             parser.add_section('Paths')
-            parser.set('Paths', 'basepath', basepath)
+            parser.set('Paths', key, stored_basepath)
+            parser.set('Paths', other_key, '')
             parser.set('Paths', 'current_path', '')
             parser.set('Paths', 'vix_path', vix_path)
             parser.add_section('Excel')
@@ -45,6 +95,7 @@ class FileService:
             parser.set('App', 'memory_threshold_mb', '500')
             with open(config.CONFIG_INI, 'w', encoding='UTF-8') as f:
                 parser.write(f)
+            self.basepath = self._resolve_stored_path(stored_basepath)
             self.vix_path = vix_path or None
         except Exception as e:
             print(f"Error writing initial config: {str(e)}")
@@ -55,11 +106,21 @@ class FileService:
             if vix_path is None and self.vix_path:
                 vix_path = self.vix_path
 
+            basepath = self.basepath or self.get_basepath()
+            stored_current = current_path
+            if basepath:
+                try:
+                    rel = os.path.relpath(current_path, basepath)
+                    if not rel.startswith('..'):
+                        stored_current = rel
+                except ValueError:
+                    pass
+
             parser = configparser.RawConfigParser()
             parser.read(config.CONFIG_INI, encoding='UTF-8')
             if not parser.has_section('Paths'):
                 parser.add_section('Paths')
-            parser.set('Paths', 'current_path', current_path)
+            parser.set('Paths', 'current_path', stored_current)
             parser.set('Paths', 'vix_path', vix_path or '')
 
             with open(config.CONFIG_INI, 'w', encoding='UTF-8') as f:
@@ -71,16 +132,16 @@ class FileService:
 
         except Exception as e:
             print(f"Error writing to {config.CONFIG_INI}: {str(e)}")
-    
+
     def get_basepath(self) -> str:
-        """config.ini の basepath を取得。未設定なら config.BASE_PATH を返す。"""
-        try:
-            parser = configparser.RawConfigParser()
-            parser.read(config.CONFIG_INI, encoding='UTF-8')
-            bp = parser.get('Paths', 'basepath', fallback='').strip()
-            return bp if bp else config.BASE_PATH
-        except Exception:
-            return config.BASE_PATH
+        """basepath を取得。未設定なら config.BASE_PATH を返す。"""
+        self._load_paths()
+        return self.basepath or config.BASE_PATH
+
+    def has_basepath_configured(self) -> bool:
+        """config.ini に有効な basepath（実在するフォルダ）が設定済みか判定する"""
+        self._load_paths()
+        return bool(self.basepath) and os.path.isdir(self.basepath)
 
     def get_current_path(self) -> str:
         """現在のパスを取得。複数コントローラーが別インスタンスを持つため毎回 config.ini を再読込する。"""

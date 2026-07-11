@@ -3,7 +3,6 @@
 旧 global_list / global_value / gui01 / func1 への依存なし。
 """
 import os
-import configparser
 import TkEasyGUI as sg
 from controllers.main_controller import MainController
 from views.main_layout import get_main_layout
@@ -30,12 +29,8 @@ class OptimizedApplication:
 
     def _needs_setup(self) -> bool:
         """config.ini が存在しないか basepath が実在しない場合 True"""
-        if not os.path.exists(config.CONFIG_INI):
-            return True
-        parser = configparser.RawConfigParser()
-        parser.read(config.CONFIG_INI, encoding='UTF-8')
-        basepath = parser.get('Paths', 'basepath', fallback='').strip()
-        return not basepath or not os.path.isdir(basepath)
+        from services.file_service import FileService
+        return not FileService().has_basepath_configured()
 
     def _run_setup_dialog(self) -> bool:
         """初回セットアップダイアログを表示。設定完了で True、キャンセルで False を返す。"""
