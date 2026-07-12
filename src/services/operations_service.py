@@ -685,7 +685,7 @@ class OperationsService:
                         shutil.copy(f, dist)
                     except (FileNotFoundError, OSError):
                         pass
-            subprocess.run(f'"{p_a}" /root "{dist}" /select "{dist}\\*.jpg"', shell=True)
+            subprocess.Popen([p_a, '/root', dist, '/select', os.path.join(dist, '*.jpg')])
 
         if values.get('-k8-'):
             book_b.sheets[14].select()
@@ -720,55 +720,63 @@ class OperationsService:
 
         # ── bookA を保存・閉じる ──────────────────────────────────────────
         book_a = self._book_a()
-        book_a.activate()
-        book_a.save()
-        book_a.close()
-        self.excel_service.current_book_a = None
-        self.excel_service.current_sheet_a = None
-        self.excel_service.workbooks.pop(os.path.join(cpath, config.XLBOOK_A), None)
-
-        # ── bookB を保存・閉じる ──────────────────────────────────────────
-        book_b = self._book_b()
-        book_b.activate()
-        book_b.save()
-        book_b.close()
-        self.excel_service.current_book_b = None
-        self.excel_service.current_sheet_b1 = None
-        self.excel_service.current_sheet_b2 = None
-        self.excel_service.current_sheet_b3 = None
-        self.excel_service.workbooks.pop(os.path.join(cpath, config.XLBOOK_B), None)
-
-        # ── bookC: マクロ実行 → 値貼り付け → xlsx として保存 ─────────────
-        book_c = self._book_c()
-        book_c.activate()
-
+        app = book_a.app
+        app.display_alerts = False
         try:
-            mp1 = book_c.macro("ThisWorkbook.ConvertToZip()")
-            mp1()
-        except Exception as e:
-            print(f"マクロ ConvertToZip 実行エラー（無視）: {e}")
+            book_a.activate()
+            book_a.api.CheckCompatibility = False
+            book_a.save()
+            book_a.close()
+            self.excel_service.current_book_a = None
+            self.excel_service.current_sheet_a = None
+            self.excel_service.workbooks.pop(os.path.join(cpath, config.XLBOOK_A), None)
 
-        book_c.sheets[0].activate()
-        book_c.sheets[0].range("A1:J1001").copy()
-        book_c.sheets[0].range("A1:J1001").paste(paste='values_and_number_formats')
+            # ── bookB を保存・閉じる ──────────────────────────────────────
+            book_b = self._book_b()
+            book_b.activate()
+            book_b.api.CheckCompatibility = False
+            book_b.save()
+            book_b.close()
+            self.excel_service.current_book_b = None
+            self.excel_service.current_sheet_b1 = None
+            self.excel_service.current_sheet_b2 = None
+            self.excel_service.current_sheet_b3 = None
+            self.excel_service.workbooks.pop(os.path.join(cpath, config.XLBOOK_B), None)
 
-        book_c.sheets[1].activate()
-        book_c.sheets[1].range("A1:E201").copy()
-        book_c.sheets[1].range("A1:E201").paste(paste='values_and_number_formats')
+            # ── bookC: マクロ実行 → 値貼り付け → xlsx として保存 ─────────
+            book_c = self._book_c()
+            book_c.activate()
 
-        book_c.activate()
-        book_c.sheets[2].activate()
-        book_c.sheets[2].range("A1:G201").copy()
-        book_c.sheets[2].range("A1:G201").paste(paste='values_and_number_formats')
+            try:
+                mp1 = book_c.macro("ThisWorkbook.ConvertToZip()")
+                mp1()
+            except Exception as e:
+                print(f"マクロ ConvertToZip 実行エラー（無視）: {e}")
 
-        time.sleep(5)
+            book_c.sheets[0].activate()
+            book_c.sheets[0].range("A1:J1001").copy()
+            book_c.sheets[0].range("A1:J1001").paste(paste='values_and_number_formats')
 
-        fullpath_x = os.path.join(cpath, "葬儀データA.xlsx")
-        book_c.save(fullpath_x)
-        book_c.close()
-        self.excel_service.current_book_c = None
-        self.excel_service.current_sheet_c = None
-        self.excel_service.workbooks.pop(os.path.join(cpath, config.XLBOOK_C), None)
+            book_c.sheets[1].activate()
+            book_c.sheets[1].range("A1:E201").copy()
+            book_c.sheets[1].range("A1:E201").paste(paste='values_and_number_formats')
+
+            book_c.activate()
+            book_c.sheets[2].activate()
+            book_c.sheets[2].range("A1:G201").copy()
+            book_c.sheets[2].range("A1:G201").paste(paste='values_and_number_formats')
+
+            time.sleep(5)
+
+            fullpath_x = os.path.join(cpath, "葬儀データA.xlsx")
+            book_c.api.CheckCompatibility = False
+            book_c.save(fullpath_x)
+            book_c.close()
+            self.excel_service.current_book_c = None
+            self.excel_service.current_sheet_c = None
+            self.excel_service.workbooks.pop(os.path.join(cpath, config.XLBOOK_C), None)
+        finally:
+            app.display_alerts = True
 
         # ── win32com で xlsx を開き xls (FileFormat=56) として保存 ─────────
         fullpath_s  = os.path.join(cpath, "葬儀データA.xls")
