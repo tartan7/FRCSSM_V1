@@ -134,9 +134,20 @@ class FileService:
             print(f"Error writing to {config.CONFIG_INI}: {str(e)}")
 
     def get_basepath(self) -> str:
-        """basepath を取得。未設定なら config.BASE_PATH を返す。"""
+        """basepath を取得。未設定なら config.BASE_PATH を返す。
+        basepath は「終了分」フォルダそのものを指す（初回セットアップで選択）。
+        """
         self._load_paths()
         return self.basepath or config.BASE_PATH
+
+    def get_template_path(self) -> str:
+        """テンプレートフォルダ（初期テンプレート/最新）のパスを返す。
+        basepath（終了分）の親ディレクトリ配下にある想定。
+        例: C:/inte_dir/終了分 → C:/inte_dir/初期テンプレート/最新
+        """
+        basepath = self.get_basepath()
+        parent = os.path.dirname(os.path.normpath(basepath))
+        return os.path.join(parent, config.TPATH1, config.TPATH2)
 
     def has_basepath_configured(self) -> bool:
         """config.ini に有効な basepath（実在するフォルダ）が設定済みか判定する"""
@@ -160,7 +171,28 @@ class FileService:
         except Exception as e:
             print(f"ディレクトリ作成エラー: {str(e)}")
             return False
-    
+
+    def create_case_folder(self, template_path: str, dest_path: str) -> None:
+        """テンプレートフォルダをコピーして案件フォルダを新規作成する。
+
+        Raises:
+            FileNotFoundError: テンプレートが存在しない
+            FileExistsError: 作成先が既に存在する
+            ValueError: パスが不正
+        """
+        template_path = os.path.normpath(template_path.strip()) if template_path else ''
+        dest_path = os.path.normpath(dest_path.strip()) if dest_path else ''
+        if not template_path or not dest_path or dest_path in ('.', ''):
+            raise ValueError("テンプレートまたは作成先パスが不正です")
+        if not os.path.isdir(template_path):
+            raise FileNotFoundError(f"テンプレートフォルダがありません:\n{template_path}")
+        if os.path.exists(dest_path):
+            raise FileExistsError(f"既に存在します:\n{dest_path}")
+        parent = os.path.dirname(dest_path)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent, exist_ok=True)
+        shutil.copytree(template_path, dest_path)
+
     def create_folder_structure(self, base_path: str, folder_name: str) -> Dict[str, bool]:
         """フォルダ構造を作成"""
         results = {}

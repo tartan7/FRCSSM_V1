@@ -862,7 +862,7 @@ class OperationsService:
         if not os.path.exists(oscdimg):
             raise FileNotFoundError(f"oscdimg.exe が見つかりません:\n{oscdimg}")
 
-        cmd_iso = f'"{oscdimg}" -d -k -n -l"{iname}" "{cd_dir}" "{iso_path}"'
+        cmd_iso = f'"{oscdimg}" -j2 -k -n -l"{iname}" "{cd_dir}" "{iso_path}"'
         result = subprocess.run(cmd_iso, shell=True, capture_output=True, text=True)
         if result.returncode != 0:
             raise RuntimeError(f"ISO ファイル作成に失敗しました:\n{result.stderr}")

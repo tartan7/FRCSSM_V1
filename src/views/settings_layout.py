@@ -2,6 +2,7 @@
 詳細設定ウィンドウのレイアウト定義
 gui14.py から移植。gv / gl / func1 依存を除去。
 """
+import os
 import TkEasyGUI as sg
 import config
 from data.list_data import (
@@ -19,13 +20,20 @@ def _build_choices():
     return tt_choice, va_choice, ffm_choice, ro_choice, cc_choice
 
 
-def get_settings_layout(basepath: str = "", tpath1: str = "", tpath2: str = "", cdpath: str = "") -> list:
-    """詳細設定ウィンドウのレイアウトを返す"""
+def get_settings_layout(basepath: str = "", template_path: str = "", cdpath: str = "") -> list:
+    """詳細設定ウィンドウのレイアウトを返す。
+
+    Args:
+        basepath: 初期フォルダ（終了分）。config.ini の basepath。
+        template_path: テンプレートフォルダ（初期テンプレート/最新）。
+        cdpath: CD作成フォルダ名。
+    """
     tt_choice, va_choice, ffm_choice, ro_choice, cc_choice = _build_choices()
 
     basepath = basepath or config.BASE_PATH
-    tpath1 = tpath1 or config.TPATH1
-    tpath2 = tpath2 or config.TPATH2
+    if not template_path:
+        parent = os.path.dirname(os.path.normpath(basepath))
+        template_path = os.path.join(parent, config.TPATH1, config.TPATH2)
     cdpath = cdpath or config.CDPATH
 
     frame01 = sg.Frame(layout=[
@@ -42,10 +50,10 @@ def get_settings_layout(basepath: str = "", tpath1: str = "", tpath2: str = "", 
          sg.InputText(key='-ini_dir-', default_text=basepath, font=('Meiryo UI', 16), size=(30, 1)),
          sg.FolderBrowse('開く', font=('Meiryo UI', 16), initial_folder=basepath, key='filebtn1')],
         [sg.Text(text='テンプレートフォルダ名', size=(16, 1), font=('Meiryo UI', 14)),
-         sg.InputText(key='-wrk_dir-', default_text=basepath + '\\' + tpath1 + '\\' + tpath2,
+         sg.InputText(key='-wrk_dir-', default_text=template_path,
                       font=('Meiryo UI', 16), size=(30, 1)),
          sg.FolderBrowse('開く', font=('Meiryo UI', 16),
-                         initial_folder=basepath + '\\' + tpath1 + '\\' + tpath2, key='filebtn2')],
+                         initial_folder=template_path, key='filebtn2')],
         [sg.Text(text='CD作成フォルダ名', size=(16, 1), font=('Meiryo UI', 14), pad=((0, 10), (0, 0))),
          sg.InputText(key='-cd_dir-', default_text=cdpath + '\\', font=('Meiryo UI', 16),
                       size=(34, 1), pad=((0, 0), (0, 0)))],

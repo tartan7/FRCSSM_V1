@@ -263,16 +263,30 @@ class MainController(BaseController):
         print("香典一覧ボタンが押されました")
         return True
 
+    def _resolve_folder_setup_paths(self):
+        """フォルダ作成・設定画面用のパスを解決する。
+
+        current_path が消えている（初期フォルダが空など）場合は
+        初期フォルダを作成先の起点にし、遺族名もクリアする。
+        """
+        from services.excel_service import ExcelService
+        fs = self.data_service.file_service
+        basepath = fs.get_basepath()
+        template_path = fs.get_template_path()
+        cpath = fs.get_current_path()
+        if cpath and not os.path.isdir(cpath):
+            # 削除済み・空の終了分などで config.ini のパスが無効
+            cpath = ""
+        x_dir2 = ExcelService._extract_family_name_from_path(cpath) if cpath else ""
+        tmppath = cpath if cpath else basepath
+        return basepath, template_path, tmppath, x_dir2
+
     def _handle_folder_setup(self, values):
         """フォルダ作成・設定の処理"""
         print("フォルダ作成・設定ボタンが押されました")
-        cpath = self.data_service.file_service.get_current_path()
-        from services.excel_service import ExcelService
-        x_dir2 = ExcelService._extract_family_name_from_path(cpath)
-        basepath = self.data_service.file_service.get_basepath()
-        tmppath = cpath if cpath else basepath + '\\' + config.TPATH3 + '\\'
+        basepath, template_path, tmppath, x_dir2 = self._resolve_folder_setup_paths()
         self.window = self.switch_window(
-            get_folder_layout(basepath, config.TPATH1, config.TPATH2, config.TPATH3, tmppath, x_dir2),
+            get_folder_layout(basepath, template_path, tmppath, x_dir2),
             'フォルダ作成・設定',
             use_hide=False
         )
@@ -294,12 +308,8 @@ class MainController(BaseController):
 
     def _open_modal_sub_window(self):
         """モーダルサブウィンドウを開く"""
-        cpath = self.data_service.file_service.get_current_path()
-        from services.excel_service import ExcelService
-        x_dir2 = ExcelService._extract_family_name_from_path(cpath)
-        basepath = self.data_service.file_service.get_basepath()
-        tmppath = cpath if cpath else basepath + '\\' + config.TPATH3 + '\\'
-        sub_layout = get_folder_layout(basepath, config.TPATH1, config.TPATH2, config.TPATH3, tmppath, x_dir2)
+        basepath, template_path, tmppath, x_dir2 = self._resolve_folder_setup_paths()
+        sub_layout = get_folder_layout(basepath, template_path, tmppath, x_dir2)
 
         sub_window = sg.Window('フォルダ作成・設定', sub_layout, modal=True, finalize=True, size=(600, 400))
 
@@ -308,7 +318,7 @@ class MainController(BaseController):
             if event == sg.WIN_CLOSED or event == '-Quit-' or event == '-Close-':
                 break
             elif event == '-su82-':
-                self._handle_create_folder(values)
+                self._handle_create_folder(values, window=sub_window)
             elif event == '-su83-':
                 self._handle_set_path(values)
             elif event == '-x_dir2-':
@@ -330,7 +340,7 @@ class MainController(BaseController):
                 self.window = self.switch_window(get_main_layout(), '記録書簡易システム(β版)')
                 break
             elif event == '-su82-':
-                self._handle_create_folder(values)
+                self._handle_create_folder(values, window=self.window)
             elif event == '-su83-':
                 self._handle_set_path(values)
             elif event == '-x_dir2-':
@@ -340,11 +350,39 @@ class MainController(BaseController):
             else:
                 self._handle_sub_window_event(event, values)
 
-    def _handle_create_folder(self, values):
-        """フォルダ作成処理"""
+    def _handle_create_folder(self, values, window=None):
+        """フォルダ作成処理 — テンプレートをコピーして案件フォルダを作る"""
         try:
-            print("フォルダ作成処理を実行")
-            self.show_success("フォルダが作成されました", "フォルダ作成")
+            family = (values.get('-x_dir2-') or '').strip()
+            if not family:
+                self.show_error("遺族名を入力してください。", "フォルダ作成")
+                return
+
+            ini_dir = os.path.normpath((values.get('-ini_dir-') or '').strip())
+            template = os.path.normpath((values.get('-wrk_dir-') or '').strip())
+            dest = os.path.normpath((values.get('-x_dir-') or '').strip())
+            target_window = window or self.window
+
+            # 遺族名入力直後で -x_dir- が初期フォルダのままの場合は組み立て直す
+            if not dest or dest in ('.', ini_dir) or os.path.normcase(dest) == os.path.normcase(ini_dir):
+                from utils.date_utils import return_days
+                dest = os.path.join(ini_dir, f"{return_days()}{family}")
+                if target_window is not None and '-x_dir-' in getattr(target_window, 'AllKeysDict', {}):
+                    target_window['-x_dir-'].update(dest)
+
+            if os.path.normcase(dest) == os.path.normcase(ini_dir):
+                self.show_error("作成フォルダ名が初期フォルダと同じです。\n遺族名を入力してください。", "フォルダ作成")
+                return
+
+            self.data_service.file_service.create_case_folder(template, dest)
+            if target_window is not None and '-x_dir-' in getattr(target_window, 'AllKeysDict', {}):
+                target_window['-x_dir-'].update(dest)
+            print(f"フォルダ作成完了: {dest}")
+            self.show_success(f"フォルダを作成しました:\n{dest}", "フォルダ作成")
+        except FileExistsError as e:
+            self.show_error(str(e), "フォルダ作成")
+        except FileNotFoundError as e:
+            self.show_error(str(e), "フォルダ作成")
         except Exception as e:
             self.show_error(f"フォルダ作成中にエラーが発生しました: {str(e)}")
 
@@ -356,7 +394,10 @@ class MainController(BaseController):
                 self.show_error("フォルダが選択されていません", "パス設定")
                 return
             if not os.path.exists(new_path):
-                self.show_error(f"フォルダが存在しません:\n{new_path}", "パス設定")
+                self.show_error(
+                    f"フォルダが存在しません:\n{new_path}\n\n先に「フォルダ作成」を実行してください。",
+                    "パス設定"
+                )
                 return
             # config.ini に保存 & FileService.current_path を更新
             self.data_service.file_service.save_paths(new_path)
@@ -401,7 +442,8 @@ class MainController(BaseController):
                 self.window = tmp
         except NotImplementedError:
             # 詳細設定ウィンドウを直接開く（operations_service 未実装時のフォールバック）
-            layout = get_settings_layout()
+            fs = self.data_service.file_service
+            layout = get_settings_layout(fs.get_basepath(), fs.get_template_path())
             self.window = sg.Window('詳細設定', layout, finalize=True)
         return True
 
