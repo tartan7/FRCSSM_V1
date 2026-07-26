@@ -230,6 +230,9 @@ class ExcelService:
                 vals[8] = '○' if data['check'] else ''
             sheet.range(f"B{row}:J{row}").value = vals
 
+            if self.current_book_a is not None:
+                self.current_book_a.save()
+
         except Exception as e:
             raise Exception(f"香典データの更新に失敗しました: {str(e)}")
     
@@ -319,6 +322,8 @@ class ExcelService:
         sheet.range("H" + rrow).value = values['-i_furigana-']
         sheet.range("I" + rrow).value = '○' if values['-k_rmail-'] else ''
         sheet.range("J" + rrow).value = '○' if values['-k_inv-'] else ''
+
+        book.save()
 
         window['-i_price-'].update(",000")
         window['-i_furigana-'].update("")
@@ -668,6 +673,8 @@ class ExcelService:
                 for cell in ["E30", "F30", "G30", "H30"]:
                     sh.range(cell).value = ""
 
+        book.save()
+
     def save_funeral_info2(self, values) -> None:
         """ウィンドウの葬儀施行要領データを Excel シート B2 に書き込む。
 
@@ -706,6 +713,8 @@ class ExcelService:
                 sh.range(f"L{idx}").value = str(int(result[4]))
             if '分' in datestr and len(result) > 5:
                 sh.range(f"M{idx}").value = result[5] + "分より"
+
+        book.save()
 
     @staticmethod
     def _extract_family_name_from_path(cpath: str) -> str:

@@ -168,6 +168,7 @@ class OperationsService:
 
         base_text = val[2] if len(val) > 2 else ''
         sh.range("C" + r_row).value = base_text if tmp_name == "" else base_text + "\n" + tmp_name
+        book.save()
 
     def subt_sort_t3(self) -> None:
         """弔辞弔電テーブルをソートする（Excelマクロ実行）。func1.subt_sort_T3 から移植。"""
@@ -478,6 +479,7 @@ class OperationsService:
         sh.range("D5").value = values.get('-input026-')
         sh.range("D6").value = values.get('-input027-')
         sh.range("D10").value = values.get('-input028-')
+        book.save()
 
     # ------------------------------------------------------------------ #
     # 会計・集計操作                                                        #
@@ -860,15 +862,26 @@ class OperationsService:
         imgburn = r"C:\Program Files (x86)\ImgBurn\ImgBurn.exe"
 
         if not os.path.exists(oscdimg):
-            raise FileNotFoundError(f"oscdimg.exe が見つかりません:\n{oscdimg}")
+            raise FileNotFoundError(
+                f"oscdimg.exe が見つかりません:\n{oscdimg}\n\n"
+                "Windows ADK (Assessment and Deployment Kit) の Oscdimg が必要です。"
+            )
 
-        cmd_iso = f'"{oscdimg}" -j2 -k -n -l"{iname}" "{cd_dir}" "{iso_path}"'
-        result = subprocess.run(cmd_iso, shell=True, capture_output=True, text=True)
-        if result.returncode != 0:
-            raise RuntimeError(f"ISO ファイル作成に失敗しました:\n{result.stderr}")
+        # -j2 (Joliet) は日本語ファイル名対応。-j2 と -n/-d は同時指定不可。
+        cmd_iso = f'"{oscdimg}" -j2 -k -l"{iname}" "{cd_dir}" "{iso_path}"'
+        result = subprocess.run(
+            cmd_iso, shell=True, capture_output=True, text=True,
+            encoding="cp932", errors="replace",
+        )
+        if result.returncode != 0 or not os.path.exists(iso_path):
+            detail = (result.stdout or "") + (result.stderr or "")
+            raise RuntimeError(f"ISO ファイル作成に失敗しました:\n{detail.strip()}")
 
         if not os.path.exists(imgburn):
-            raise FileNotFoundError(f"ImgBurn.exe が見つかりません:\n{imgburn}")
+            raise FileNotFoundError(
+                f"ImgBurn.exe が見つかりません:\n{imgburn}\n\n"
+                "ImgBurn のインストールが必要です。"
+            )
 
         drive = self._get_cd_drives()[0][0]
         cmd_burn = (f'"{imgburn}" /MODE WRITE /SRC "{iso_path}" /DEST {drive}'

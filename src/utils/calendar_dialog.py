@@ -90,6 +90,7 @@ class CalenderDialog:
             month=init_date.month,
             day=init_date.day,
             date_pattern='yyyy/mm/dd',
+            locale='ja_JP',
             font=self.calendar_font,
             showweeknumbers=False,
         )
